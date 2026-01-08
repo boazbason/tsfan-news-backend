@@ -15,7 +15,12 @@ router.post('/', authMiddleware, async (req: AuthRequest, res) => {
 // Get comments for post
 router.get('/post/:postId', async (req, res) => {
   const { postId } = req.params;
-  const comments = await prisma.comment.findMany({ where: { postId, approved: true }, include: { author: true, replies: true }, orderBy: { createdAt: 'asc' } });
+  console.log({postId});
+  
+  const comments = await prisma.comment.findMany(
+    { where: { postId, approved: true }, 
+    // include: { author: true, replies: true }, 
+    orderBy: { createdAt: 'asc' } });
   res.json(comments);
 });
 
