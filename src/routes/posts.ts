@@ -2,15 +2,23 @@ import { Router } from 'express';
 import prisma from '../prisma/client';
 import { authMiddleware, AuthRequest, roleRequired } from '../middleware/auth';
 import multer from 'multer';
-import path from 'path';
 import slugify from 'slugify';
+import { uploadImageToS3 } from '../utils/s3';
 
 const router = Router();
-const upload = multer({ dest: path.join(__dirname, '..', '..', 'uploads') });
+const upload = multer({ storage: multer.memoryStorage() });
+const uploadPostImage = upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'file', maxCount: 1 }
+]);
+
+const resolveUploadFile = (req: AuthRequest) => {
+  const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+  return files?.image?.[0] || files?.file?.[0];
+};
 
 // List with filters, pagination, featured
 router.get('/', async (req, res) => {
-  console.log("get posts")
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.max(1, parseInt(req.query.limit as string) || 10);
   const category = req.query.category as string | undefined;
@@ -28,7 +36,6 @@ router.get('/', async (req, res) => {
     take: limit
   });
   const total = await prisma.post.count({ where });
-  console.log("the posts: ", posts)
   res.json({ total, page, limit, data: posts });
 });
 
@@ -47,29 +54,43 @@ router.get('/:id', async (req, res) => {
 });
 
 // create (editor or admin)
-router.post('/', 
-  authMiddleware, 
-  roleRequired('EDITOR'), 
-  upload.single('image'), async (req: AuthRequest, res) => {
-  const { title, content, excerpt, categoryId, featured, published } = req.body as any;
-  const authorId = req.user.id;
-  const slug = slugify(title || Date.now().toString(), { lower: true, strict: true });
-  const image = req.file ? '/uploads/' + req.file.filename : undefined;
-  const post = await prisma.post.create({
-    data: {
-      title, slug, content, excerpt, featured: featured === 'true' || featured === true, image, published: published === 'true' || published === true, authorId,
-      categoryId: categoryId || undefined
+router.post('/',
+  authMiddleware,
+  roleRequired('EDITOR'),
+  uploadPostImage, async (req: AuthRequest, res) => {
+  try {
+    const { title, content, excerpt, categoryId, featured, published } = req.body as any;
+    const authorId = req.user.id;
+    const slug = slugify(title || Date.now().toString(), { lower: true, strict: true });
+    let image: string | undefined;
+    const file = resolveUploadFile(req);
+
+    if (file) {
+      const uploaded = await uploadImageToS3(file, 'posts');
+      image = uploaded.url;
     }
-  });
-  res.status(201).json(post);
+    const post = await prisma.post.create({
+      data: {
+        title, slug, content, excerpt, featured: featured === 'true' || featured === true, image, published: published === 'true' || published === true, authorId,
+        categoryId: categoryId || undefined
+      }
+    });
+    res.status(201).json(post);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create post' });
+  }
 });
 
 // update
-router.put('/:id', authMiddleware, roleRequired('EDITOR'), upload.single('image'), async (req: AuthRequest, res) => {
+router.put('/:id', authMiddleware, roleRequired('EDITOR'), uploadPostImage, async (req: AuthRequest, res) => {
   const id = req.params.id;
   const data: any = req.body;
-  if (req.file) data.image = '/uploads/' + req.file.filename;
   try {
+    const file = resolveUploadFile(req);
+    if (file) {
+      const uploaded = await uploadImageToS3(file, 'posts');
+      data.image = uploaded.url;
+    }
     const updated = await prisma.post.update({ where: { id }, data });
     res.json(updated);
   } catch (e:any) {
