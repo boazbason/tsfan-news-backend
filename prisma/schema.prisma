@@ -18,13 +18,6 @@ model User {
   comments  Comment[]
 }
 
-model Category {
-  id    String @id @default(cuid())
-  name  String @unique
-  slug  String @unique
-  posts Post[]
-}
-
 model Post {
   id          String    @id @default(cuid())
   title       String
@@ -39,8 +32,7 @@ model Post {
   updatedAt   DateTime  @updatedAt
   authorId    String
   author      User      @relation(fields: [authorId], references: [id])
-  categoryId  String?
-  category    Category? @relation(fields: [categoryId], references: [id])
+  category    String?
   comments    Comment[]
   ads         Ad[]      @relation("AdPosts")
 }

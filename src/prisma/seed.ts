@@ -9,12 +9,6 @@ async function main(){
     create: { email: 'admin@safed.local', password: pass, name: 'Admin', role: 'ADMIN' }
   });
 
-  const cat = await prisma.category.upsert({
-    where: { slug: 'local' },
-    update: {},
-    create: { name: 'חדשות מקומיות', slug: 'local' }
-  });
-
   await prisma.post.create({
     data: {
       title: 'דוגמה: פתיחת שירות החדשות - מלא',
@@ -24,7 +18,7 @@ async function main(){
       featured: true,
       published: true,
       authorId: (await prisma.user.findFirst({ where: { email: 'admin@safed.local' } }))!.id,
-      categoryId: cat.id
+      category: 'local'
     }
   });
 

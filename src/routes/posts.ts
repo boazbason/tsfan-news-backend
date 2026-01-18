@@ -25,12 +25,12 @@ router.get('/', async (req, res) => {
   const featured = req.query.featured === 'true' ? true : undefined;
 
   const where: any = {};
-  if (category) where.category = { slug: category };
+  if (category) where.category = category;
   if (typeof featured !== 'undefined') where.featured = featured;
 
   const posts = await prisma.post.findMany({
     where,
-    include: { author: true, category: true },
+    include: { author: true },
     orderBy: { createdAt: 'desc' },
     skip: (page - 1) * limit,
     take: limit
@@ -40,13 +40,13 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/featured', async (req, res) => {
-  const items = await prisma.post.findMany({ where: { featured: true, published: true }, include: { author: true, category: true }, orderBy: { createdAt: 'desc' }, take: 10 });
+  const items = await prisma.post.findMany({ where: { featured: true, published: true }, include: { author: true }, orderBy: { createdAt: 'desc' }, take: 10 });
   res.json(items);
 });
 
 router.get('/:id', async (req, res) => {
   const id = req.params.id;
-  const post = await prisma.post.findUnique({ where: { id }, include: { author: true, category: true, comments: true } });
+  const post = await prisma.post.findUnique({ where: { id }, include: { author: true, comments: true } });
   if (!post) return res.status(404).json({ error: 'Not found' });
   // increment views
   await prisma.post.update({ where: { id }, data: { views: { increment: 1 } } });
@@ -59,7 +59,7 @@ router.post('/',
   roleRequired('EDITOR'),
   uploadPostImage, async (req: AuthRequest, res) => {
   try {
-    const { title, content, excerpt, categoryId, featured, published } = req.body as any;
+    const { title, content, excerpt, category, featured, published } = req.body as any;    
     const authorId = req.user.id;
     const slug = slugify(title || Date.now().toString(), { lower: true, strict: true });
     let image: string | undefined;
@@ -72,12 +72,14 @@ router.post('/',
     const post = await prisma.post.create({
       data: {
         title, slug, content, excerpt, featured: featured === 'true' || featured === true, image, published: published === 'true' || published === true, authorId,
-        categoryId: categoryId || undefined
+        category: category || null
       }
     });
     res.status(201).json(post);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create post' });
+    console.log('error: ', error);
+    
+    res.status(500).json({ error: 'Failed to create post: ' });
   }
 });
 

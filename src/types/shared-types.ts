@@ -18,13 +18,6 @@ export interface User {
   comments?: Comment[];
 }
 
-export interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  posts?: Post[];
-}
-
 export interface Post {
   id: string;
   title: string;
@@ -39,8 +32,7 @@ export interface Post {
   updatedAt: string;
   authorId: string;
   author?: User;
-  categoryId: string | null;
-  category?: Category | null;
+  category: string | null;
   comments?: Comment[];
   ads?: Ad[];
 }
